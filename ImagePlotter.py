@@ -1,16 +1,18 @@
 import os
 import re
 import yaml
+import math
 from PIL import Image, ImageDraw, ImageFont
 import matplotlib.pyplot as plt
 
 class Box:
-    def __init__(self, width:int=16, height:int=16, margin:list=[0,0,0,0], img=None) -> None:
+    def __init__(self, width:int=16, height:int=16, margin:list=[0,0,0,0], img=None, rotate=0) -> None:
         self.attrs = {
             'width': width,
             'height': height,
             'margin': margin,    # up,down,left,right
             'img': img,
+            'rotate': rotate,
         }
     
     def set(self, attr, value):
@@ -76,6 +78,9 @@ class Text:
             raise ValueError(f"unknown alignment: {self.attrs['text_align']}")
         # draw text
         self.draw.text((pos_x, pos_y), self.attrs['text'], font=self.font, fill=text_color)
+        # self.text_image = self.text_image.rotate(self.attrs['rotate'],expand=True)
+        # self.attrs['width'] = self.text_image.width
+        # self.attrs['height'] = self.text_image.height
         return self.text_image
 
 class Canvas:
@@ -86,11 +91,19 @@ class Canvas:
         self.comps = []
         self.layer = None
 
-    def add_component(self, pos_x, pos_y, comp):
-        new_comp = [pos_x, pos_y, comp]
+    def add_component(self, pos_x, pos_y, comp, theta=0):
+        new_comp = [pos_x, pos_y, theta, comp]
+        theta_radians = theta/180*math.pi
         self.comps.append(new_comp)
-        canvas_width = pos_x + comp.get_attr('width')
-        canvas_height = pos_y + comp.get_attr('height')
+
+        width = comp.get_attr('width')
+        height = comp.get_attr('height')
+        comp_width = int(width * math.cos(theta_radians) + height * math.sin(theta_radians))
+        comp_height = int(height * math.cos(theta_radians) + width * math.sin(theta_radians))
+
+        canvas_width = pos_x + comp_width
+        canvas_height = pos_y + comp_height
+
         # update total_width
         if self.total_width < canvas_width:
             self.total_width = canvas_width
@@ -99,8 +112,9 @@ class Canvas:
 
     def render(self, save_dir='./', save_name='CanvaseRender.png', show=False):
         self.layer = Image.new('RGB', (self.total_width, self.total_height), 'white')
-        for pos_x, pos_y, comp in self.comps:
+        for pos_x, pos_y, theta, comp in self.comps:
             comp_img = comp.render()
+            comp_img = comp_img.rotate(theta, expand=True, fillcolor='white')
             self.layer.paste(comp_img, (pos_x, pos_y))
         # save image
         save_path = os.path.join(save_dir, save_name)
